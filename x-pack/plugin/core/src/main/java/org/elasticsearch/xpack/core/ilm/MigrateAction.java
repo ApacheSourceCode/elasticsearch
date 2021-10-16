@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.routing.allocation.DataTier.getPreferredTiersConfiguration;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.getPreferredTiersConfigurationSettings;
 
 /**
  * A {@link LifecycleAction} which enables or disables the automatic migration of data between
@@ -36,7 +36,7 @@ public class MigrateAction implements LifecycleAction {
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
     private static final Logger logger = LogManager.getLogger(MigrateAction.class);
-    static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-skip-action";
+    public static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-skip-action";
 
     private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         a -> new MigrateAction(a[0] == null ? true : (boolean) a[0]));
@@ -115,9 +115,7 @@ public class MigrateAction implements LifecycleAction {
                     return false;
                 });
             UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
-                Settings.builder()
-                    .put(DataTier.TIER_PREFERENCE, getPreferredTiersConfiguration(targetTier))
-                    .build());
+                getPreferredTiersConfigurationSettings(targetTier));
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
             return List.of(conditionalSkipActionStep, updateMigrationSettingStep, migrationRoutedStep);
         } else {
