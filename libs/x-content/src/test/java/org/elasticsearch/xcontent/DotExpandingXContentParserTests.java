@@ -19,11 +19,13 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     private void assertXContentMatches(String dotsExpanded, String withDots) throws IOException {
         XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
         XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser);
+        expandedParser.allowDuplicateKeys(true);
 
         XContentBuilder actualOutput = XContentBuilder.builder(JsonXContent.jsonXContent).copyCurrentStructure(expandedParser);
         assertEquals(dotsExpanded, Strings.toString(actualOutput));
 
         XContentParser expectedParser = createParser(JsonXContent.jsonXContent, dotsExpanded);
+        expectedParser.allowDuplicateKeys(true);
         XContentParser actualParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, withDots));
         XContentParser.Token currentToken;
         while ((currentToken = actualParser.nextToken()) != null) {
@@ -101,6 +103,13 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     }
 
+    public void testDuplicateKeys() throws IOException {
+        assertXContentMatches("""
+            {"test":{"with":{"dots1":"value1"}},"test":{"with":{"dots2":"value2"}}}""", """
+            { "test.with.dots1" : "value1",
+              "test.with.dots2" : "value2"}""");
+    }
+
     public void testSkipChildren() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
             { "test.with.dots" : "value", "nodots" : "value2" }"""));
@@ -165,5 +174,65 @@ public class DotExpandingXContentParserTests extends ESTestCase {
             """, """
             {"first.dot":{"second.dot":"value","third":"value"},"nodots":"value"}\
             """);
+    }
+
+    public void testGetTokenLocation() throws IOException {
+        String jsonInput = """
+            {"first.dot":{"second.dot":"value",
+            "value":null}}\
+            """;
+        XContentParser expectedParser = createParser(JsonXContent.jsonXContent, jsonInput);
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, jsonInput));
+
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, expectedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.FIELD_NAME, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("first", dotExpandedParser.currentName());
+        assertEquals("first.dot", expectedParser.currentName());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals("dot", dotExpandedParser.currentName());
+        assertEquals(XContentParser.Token.START_OBJECT, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.FIELD_NAME, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("second", dotExpandedParser.currentName());
+        assertEquals("second.dot", expectedParser.currentName());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals("dot", dotExpandedParser.currentName());
+        assertEquals(XContentParser.Token.VALUE_STRING, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.VALUE_STRING, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.FIELD_NAME, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("value", dotExpandedParser.currentName());
+        assertEquals("value", expectedParser.currentName());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.VALUE_NULL, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.VALUE_NULL, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, expectedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, expectedParser.nextToken());
+        assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
+        assertNull(dotExpandedParser.nextToken());
+        assertNull(expectedParser.nextToken());
     }
 }
